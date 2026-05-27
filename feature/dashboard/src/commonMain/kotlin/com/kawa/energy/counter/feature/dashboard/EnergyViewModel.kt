@@ -54,6 +54,24 @@ sealed class InstallStatus {
 
 enum class PriceSource { Auto, Fixed }
 
+/**
+ * UI-facing surface of the dashboard. Splitting it out lets the composables
+ * depend on an interface instead of the concrete ViewModel — meaning @Preview
+ * composables can pass a no-op stub without constructing the real VM (whose
+ * `init { }` reads from disk / starts native monitors).
+ */
+interface DashboardActions {
+    fun start() {}
+    fun stop() {}
+    fun detectLocation() {}
+    fun overrideCountry(countryCode: String) {}
+    fun setPriceSource(source: PriceSource) {}
+    fun setFixedPrice(price: Double) {}
+    fun installPowerSource() {}
+    fun clearHistory() {}
+    val isInstallerSupported: Boolean get() = false
+}
+
 sealed class LocationStatus {
     data object Idle : LocationStatus()
     data object Detecting : LocationStatus()
@@ -63,7 +81,7 @@ sealed class LocationStatus {
     data class Unsupported(val countryCode: String) : LocationStatus()
 }
 
-class EnergyViewModel : ViewModel() {
+class EnergyViewModel : ViewModel(), DashboardActions {
 
     private val accumulator = EnergyAccumulator()
     private var monitor: PowerMonitor? = null
@@ -83,7 +101,7 @@ class EnergyViewModel : ViewModel() {
         }
     }
 
-    fun start() {
+    override fun start() {
         if (_state.value.running) return
         accumulator.reset()
         _state.update { it.copy(kwh = 0.0, cost = 0.0, running = true, errorMessage = null) }
@@ -101,7 +119,7 @@ class EnergyViewModel : ViewModel() {
         }
     }
 
-    fun clearHistory() {
+    override fun clearHistory() {
         viewModelScope.launch {
             runCatching { store.clear() }
             _state.update { it.copy(history = emptyList()) }
@@ -127,25 +145,25 @@ class EnergyViewModel : ViewModel() {
         }
     }
 
-    fun stop() {
+    override fun stop() {
         monitor?.stop()
         monitor = null
         _state.update { it.copy(running = false, watts = 0.0) }
     }
 
-    fun setPriceSource(source: PriceSource) {
+    override fun setPriceSource(source: PriceSource) {
         _state.update { it.copy(priceSource = source) }
         viewModelScope.launch { refreshRate() }
     }
 
-    fun setFixedPrice(price: Double) {
+    override fun setFixedPrice(price: Double) {
         _state.update { it.copy(fixedPricePerKwh = price) }
         if (_state.value.priceSource == PriceSource.Fixed) {
             viewModelScope.launch { refreshRate() }
         }
     }
 
-    fun detectLocation() {
+    override fun detectLocation() {
         _state.update { it.copy(locationStatus = LocationStatus.Detecting) }
         viewModelScope.launch {
             when (val r = locationProvider.detect()) {
@@ -171,7 +189,7 @@ class EnergyViewModel : ViewModel() {
         }
     }
 
-    fun overrideCountry(countryCode: String) {
+    override fun overrideCountry(countryCode: String) {
         if (countryCode.length != 2) return
         val info = LocationInfo(countryCode = countryCode.uppercase(), label = countryCode.uppercase())
         _state.update {
@@ -232,9 +250,9 @@ class EnergyViewModel : ViewModel() {
         }
     }
 
-    val isInstallerSupported: Boolean get() = installer.isSupported
+    override val isInstallerSupported: Boolean get() = installer.isSupported
 
-    fun installPowerSource() {
+    override fun installPowerSource() {
         if (!installer.isSupported) {
             _state.update { it.copy(installStatus = InstallStatus.NotSupported) }
             return

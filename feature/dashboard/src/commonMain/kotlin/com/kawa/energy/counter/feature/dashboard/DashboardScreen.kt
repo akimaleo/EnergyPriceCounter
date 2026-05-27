@@ -77,26 +77,47 @@ private val DashboardScheme = darkColorScheme(
     outlineVariant = Color(0xFF2A323D),
 )
 
+/**
+ * Stateful app entry point. Creates the ViewModel, observes its state, and
+ * kicks off location detection + the session on first composition.
+ */
 @Composable
-@Preview
 fun App() {
+    val vm: EnergyViewModel = viewModel { EnergyViewModel() }
+    val state by vm.state.collectAsState()
+    val platform = remember { getPlatform() }
+
+    LaunchedEffect(Unit) {
+        vm.detectLocation()
+        vm.start()
+    }
+
+    DashboardScreen(
+        state = state,
+        actions = vm,
+        isDesktop = platform.isDesktop,
+    )
+}
+
+/**
+ * Stateless dashboard root. Takes everything it needs as data + callbacks so it
+ * can be previewed without constructing the real ViewModel (whose `init` reads
+ * persisted history from disk and instantiates native monitors).
+ */
+@Composable
+fun DashboardScreen(
+    state: EnergyUiState,
+    actions: DashboardActions,
+    isDesktop: Boolean,
+) {
     MaterialTheme(colorScheme = DashboardScheme) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            val vm: EnergyViewModel = viewModel { EnergyViewModel() }
-            val state by vm.state.collectAsState()
-            val platform = remember { getPlatform() }
-
-            LaunchedEffect(Unit) {
-                vm.detectLocation()
-                vm.start()
-            }
-
             val density = LocalDensity.current
             val maxHeaderHeightDp = 480.dp
             val minHeaderHeightDp = 64.dp
             val maxPx = with(density) { maxHeaderHeightDp.toPx() }
             val minPx = with(density) { minHeaderHeightDp.toPx() }
-            var headerOffsetPx by remember { mutableFloatStateOf(0f) } // -(maxPx-minPx)..0
+            var headerOffsetPx by remember { mutableFloatStateOf(0f) }
 
             val nestedScroll = remember(maxPx, minPx) {
                 object : NestedScrollConnection {
@@ -129,17 +150,17 @@ fun App() {
                     ) {
                         Spacer(Modifier.height(8.dp))
                         SecondaryMetrics(state)
-                        PriceSourceSection(state, vm)
-                        if (platform.isDesktop) DesktopDataSourceCard(state, vm)
-                        HistorySection(state, vm)
+                        PriceSourceSection(state, actions)
+                        if (isDesktop) DesktopDataSourceCard(state, actions)
+                        HistorySection(state, actions)
                         state.errorMessage?.let { ErrorPill(it) }
                         Spacer(Modifier.height(24.dp))
                     }
 
                     CollapsingPowerHeader(
                         state = state,
-                        onStart = { vm.start() },
-                        onStop = { vm.stop() },
+                        onStart = { actions.start() },
+                        onStop = { actions.stop() },
                         heightDp = currentHeaderDp,
                         expandFraction = expandFraction,
                         modifier = Modifier.fillMaxWidth(),
@@ -636,7 +657,7 @@ private fun TilePanel(
 }
 
 @Composable
-private fun PriceSourceSection(state: EnergyUiState, vm: EnergyViewModel) {
+private fun PriceSourceSection(state: EnergyUiState, actions: DashboardActions) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -646,17 +667,17 @@ private fun PriceSourceSection(state: EnergyUiState, vm: EnergyViewModel) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = state.priceSource == PriceSource.Auto,
-                    onClick = { vm.setPriceSource(PriceSource.Auto) },
+                    onClick = { actions.setPriceSource(PriceSource.Auto) },
                     label = { Text("Auto (by location)") },
                 )
                 FilterChip(
                     selected = state.priceSource == PriceSource.Fixed,
-                    onClick = { vm.setPriceSource(PriceSource.Fixed) },
+                    onClick = { actions.setPriceSource(PriceSource.Fixed) },
                     label = { Text("Fixed") },
                 )
             }
             AnimatedVisibility(state.priceSource == PriceSource.Auto) {
-                LocationBlock(state, vm)
+                LocationBlock(state, actions)
             }
             AnimatedVisibility(state.priceSource == PriceSource.Fixed) {
                 var input by remember { mutableStateOf(state.fixedPricePerKwh.toString()) }
@@ -664,7 +685,7 @@ private fun PriceSourceSection(state: EnergyUiState, vm: EnergyViewModel) {
                     value = input,
                     onValueChange = {
                         input = it
-                        it.toDoubleOrNull()?.let(vm::setFixedPrice)
+                        it.toDoubleOrNull()?.let(actions::setFixedPrice)
                     },
                     label = { Text("Price per kWh (${state.currency})") },
                     modifier = Modifier.fillMaxWidth(),
@@ -675,7 +696,7 @@ private fun PriceSourceSection(state: EnergyUiState, vm: EnergyViewModel) {
 }
 
 @Composable
-private fun LocationBlock(state: EnergyUiState, vm: EnergyViewModel) {
+private fun LocationBlock(state: EnergyUiState, actions: DashboardActions) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val text = when (val s = state.locationStatus) {
             LocationStatus.Idle -> "Detecting on first launch…"
@@ -688,7 +709,7 @@ private fun LocationBlock(state: EnergyUiState, vm: EnergyViewModel) {
         Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
         WorldMap(
             selectedCountry = state.location?.countryCode,
-            onCountryPicked = { vm.overrideCountry(it) },
+            onCountryPicked = { actions.overrideCountry(it) },
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
@@ -698,7 +719,7 @@ private fun LocationBlock(state: EnergyUiState, vm: EnergyViewModel) {
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
-                onClick = { vm.detectLocation() },
+                onClick = { actions.detectLocation() },
                 enabled = state.locationStatus !is LocationStatus.Detecting,
             ) { Text("Detect again") }
             if (state.locationStatus is LocationStatus.Detecting) {
@@ -716,7 +737,7 @@ private fun LocationBlock(state: EnergyUiState, vm: EnergyViewModel) {
                     val v = filtered.uppercase()
                     manual = v
                     if (v.length == 2) {
-                        runCatching { vm.overrideCountry(v) }
+                        runCatching { actions.overrideCountry(v) }
                     }
                 }
             },
@@ -728,7 +749,7 @@ private fun LocationBlock(state: EnergyUiState, vm: EnergyViewModel) {
 }
 
 @Composable
-private fun DesktopDataSourceCard(state: EnergyUiState, vm: EnergyViewModel) {
+private fun DesktopDataSourceCard(state: EnergyUiState, actions: DashboardActions) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -744,7 +765,7 @@ private fun DesktopDataSourceCard(state: EnergyUiState, vm: EnergyViewModel) {
             KvRow("Price API", state.rate?.source ?: "—")
             KvRow("Endpoint", state.rate?.endpoint ?: "—")
 
-            LhmInstallControl(state, vm)
+            LhmInstallControl(state, actions)
 
             Text(
                 "Sessions are appended to ~/.energy-counter/sessions.ndjson",
@@ -756,7 +777,7 @@ private fun DesktopDataSourceCard(state: EnergyUiState, vm: EnergyViewModel) {
 }
 
 @Composable
-private fun LhmInstallControl(state: EnergyUiState, vm: EnergyViewModel) {
+private fun LhmInstallControl(state: EnergyUiState, actions: DashboardActions) {
     val usingLhm = state.powerSourceLabel?.contains("LHM", ignoreCase = true) == true ||
         state.powerSourceLabel?.contains("PSU telemetry", ignoreCase = true) == true
     val installing = state.installStatus is InstallStatus.InProgress
@@ -764,8 +785,8 @@ private fun LhmInstallControl(state: EnergyUiState, vm: EnergyViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = { vm.installPowerSource() },
-                enabled = vm.isInstallerSupported && !installing,
+                onClick = { actions.installPowerSource() },
+                enabled = actions.isInstallerSupported && !installing,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.tertiary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -802,7 +823,7 @@ private fun LhmInstallControl(state: EnergyUiState, vm: EnergyViewModel) {
             )
         }
 
-        if (!vm.isInstallerSupported) {
+        if (!actions.isInstallerSupported) {
             Text(
                 "LibreHardwareMonitor is Windows-only. On other OSes, the OSHI CPU estimate is used.",
                 style = MaterialTheme.typography.bodySmall,
@@ -813,7 +834,7 @@ private fun LhmInstallControl(state: EnergyUiState, vm: EnergyViewModel) {
 }
 
 @Composable
-private fun HistorySection(state: EnergyUiState, vm: EnergyViewModel) {
+private fun HistorySection(state: EnergyUiState, actions: DashboardActions) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -829,7 +850,7 @@ private fun HistorySection(state: EnergyUiState, vm: EnergyViewModel) {
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
-                TextButton(onClick = { vm.clearHistory() }) { Text("Clear") }
+                TextButton(onClick = { actions.clearHistory() }) { Text("Clear") }
             }
             EnergyHistoryChart(samples = state.history, modifier = Modifier.fillMaxWidth())
         }
