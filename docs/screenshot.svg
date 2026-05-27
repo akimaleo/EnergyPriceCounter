@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 480" width="720" height="480" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#101418"/>
+      <stop offset="100%" stop-color="#0B0E11"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="480" fill="url(#bg)"/>
+
+  <!-- Header bar -->
+  <rect x="20" y="20" width="680" height="180" rx="20" fill="#1A1F25"/>
+  <text x="40" y="50" fill="#E5E7EB" font-size="20" font-weight="bold">EnergyCounter</text>
+  <text x="40" y="68" fill="#B4BAC4" font-size="11">Live power &amp; electricity cost</text>
+  <rect x="600" y="36" width="80" height="22" rx="11" fill="#7BD389" fill-opacity="0.15"/>
+  <text x="640" y="51" fill="#7BD389" font-size="11" font-weight="bold" text-anchor="middle">● live</text>
+
+  <!-- Speedometer -->
+  <g transform="translate(360 156)">
+    <path d="M-72 18 A72 72 0 0 1 0 -54" fill="none" stroke="#7BD389" stroke-width="10" stroke-linecap="round"/>
+    <path d="M0 -54 A72 72 0 0 1 48 -36" fill="none" stroke="#FFB454" stroke-width="10" stroke-linecap="round"/>
+    <path d="M48 -36 A72 72 0 0 1 72 18" fill="none" stroke="#FF6B6B" stroke-width="10" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="34" y2="-30" stroke="#E5E7EB" stroke-width="3" stroke-linecap="round"/>
+    <circle r="6" fill="#E5E7EB"/>
+    <text x="0" y="40" fill="#E5E7EB" font-size="20" font-weight="bold" text-anchor="middle">42.5</text>
+    <text x="0" y="55" fill="#B4BAC4" font-size="9" text-anchor="middle">Watts</text>
+    <text x="0" y="70" fill="#445164" font-size="8" text-anchor="middle">Live · energy-charts:NL</text>
+  </g>
+
+  <!-- Trend strip -->
+  <g>
+    <rect x="40" y="148" width="190" height="46" rx="10" fill="#252B33" fill-opacity="0.6"/>
+    <text x="52" y="164" fill="#B4BAC4" font-size="10">Usage</text>
+    <text x="218" y="164" fill="#B4BAC4" font-size="9" text-anchor="end">kWh</text>
+    <text x="52" y="180" fill="#E5E7EB" font-size="14" font-weight="600">0.0042</text>
+    <polyline points="52,190 80,188 100,185 130,182 160,177 200,170 220,165" fill="none" stroke="#7BD389" stroke-width="2"/>
+
+    <rect x="490" y="148" width="190" height="46" rx="10" fill="#252B33" fill-opacity="0.6"/>
+    <text x="502" y="164" fill="#B4BAC4" font-size="10">Total cost</text>
+    <text x="668" y="164" fill="#B4BAC4" font-size="9" text-anchor="end">EUR</text>
+    <text x="502" y="180" fill="#E5E7EB" font-size="14" font-weight="600">0.0011</text>
+    <polyline points="502,190 530,188 560,185 590,183 620,178 650,172 670,167" fill="none" stroke="#FF6B6B" stroke-width="2"/>
+  </g>
+
+  <!-- Secondary tiles -->
+  <g transform="translate(20 220)">
+    <rect x="0" y="0" width="220" height="74" rx="14" fill="#1A1F25"/>
+    <rect x="14" y="12" width="3" height="12" fill="#7BD389"/>
+    <text x="24" y="22" fill="#B4BAC4" font-size="11">Energy</text>
+    <text x="14" y="50" fill="#E5E7EB" font-size="22" font-weight="600">0.004205</text>
+    <text x="14" y="65" fill="#B4BAC4" font-size="10">kWh</text>
+
+    <rect x="230" y="0" width="220" height="74" rx="14" fill="#1A1F25"/>
+    <rect x="244" y="12" width="3" height="12" fill="#FFB454"/>
+    <text x="254" y="22" fill="#B4BAC4" font-size="11">Rate</text>
+    <text x="244" y="50" fill="#E5E7EB" font-size="22" font-weight="600">0.2643</text>
+    <text x="244" y="65" fill="#B4BAC4" font-size="10">EUR/kWh</text>
+
+    <rect x="460" y="0" width="220" height="74" rx="14" fill="#1A1F25"/>
+    <rect x="474" y="12" width="3" height="12" fill="#FF6B6B"/>
+    <text x="484" y="22" fill="#B4BAC4" font-size="11">Cost</text>
+    <text x="474" y="50" fill="#E5E7EB" font-size="22" font-weight="600">0.0011</text>
+    <text x="474" y="65" fill="#B4BAC4" font-size="10">EUR</text>
+  </g>
+
+  <!-- Chart -->
+  <g transform="translate(20 310)">
+    <rect x="0" y="0" width="680" height="150" rx="14" fill="#1A1F25"/>
+    <text x="14" y="22" fill="#E5E7EB" font-size="13" font-weight="600">History · 86 samples</text>
+    <text x="666" y="22" fill="#FFB454" font-size="11" text-anchor="end">Clear</text>
+
+    <!-- Gridlines -->
+    <g stroke="#2A323D" stroke-width="1">
+      <line x1="14" y1="50" x2="666" y2="50"/>
+      <line x1="14" y1="80" x2="666" y2="80"/>
+      <line x1="14" y1="110" x2="666" y2="110"/>
+    </g>
+
+    <!-- kWh series -->
+    <polyline points="14,130 80,128 130,124 180,120 230,115 280,110 330,95 380,80 430,75 480,68 520,55 580,52 666,40"
+      fill="none" stroke="#7BD389" stroke-width="2.5"/>
+    <!-- Cost (cumulative) series -->
+    <polyline points="14,138 80,136 130,134 180,131 230,127 280,122 330,115 380,108 430,100 480,90 520,82 580,72 666,60"
+      fill="none" stroke="#FF6B6B" stroke-width="2.5"/>
+
+    <!-- Legend -->
+    <circle cx="20" cy="138" r="3" fill="#7BD389"/>
+    <text x="28" y="142" fill="#B4BAC4" font-size="9">kWh consumed</text>
+    <circle cx="120" cy="138" r="3" fill="#FF6B6B"/>
+    <text x="128" y="142" fill="#B4BAC4" font-size="9">Cumulative cost (EUR)</text>
+  </g>
+</svg>

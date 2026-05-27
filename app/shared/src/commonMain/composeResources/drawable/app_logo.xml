@@ -1,0 +1,59 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="192dp"
+    android:height="192dp"
+    android:viewportWidth="192"
+    android:viewportHeight="192">
+
+    <path
+        android:pathData="M96,8a88,88 0 1,0 0,176 a88,88 0 1,0 0,-176z"
+        android:fillColor="#101418" />
+    <path
+        android:pathData="M96,18a78,78 0 1,0 0,156 a78,78 0 1,0 0,-156z"
+        android:fillColor="#1A1F25" />
+
+    <!-- Gauge ticks (270 degree dial: from -135 to +135) -->
+    <path
+        android:pathData="M37,134 L43,128"
+        android:strokeColor="#445164" android:strokeWidth="3" android:strokeLineCap="round" />
+    <path
+        android:pathData="M44,108 L52,106"
+        android:strokeColor="#445164" android:strokeWidth="3" android:strokeLineCap="round" />
+    <path
+        android:pathData="M48,80 L56,82"
+        android:strokeColor="#445164" android:strokeWidth="3" android:strokeLineCap="round" />
+    <path
+        android:pathData="M64,56 L70,62"
+        android:strokeColor="#445164" android:strokeWidth="3" android:strokeLineCap="round" />
+    <path
+        android:pathData="M96,46 L96,54"
+        android:strokeColor="#445164" android:strokeWidth="3" android:strokeLineCap="round" />
+    <path
+        android:pathData="M128,56 L122,62"
+        android:strokeColor="#445164" android:strokeWidth="3" android:strokeLineCap="round" />
+    <path
+        android:pathData="M144,80 L136,82"
+        android:strokeColor="#445164" android:strokeWidth="3" android:strokeLineCap="round" />
+    <path
+        android:pathData="M148,108 L140,106"
+        android:strokeColor="#445164" android:strokeWidth="3" android:strokeLineCap="round" />
+    <path
+        android:pathData="M155,134 L149,128"
+        android:strokeColor="#445164" android:strokeWidth="3" android:strokeLineCap="round" />
+
+    <!-- Outer arc, green→amber→red -->
+    <path
+        android:pathData="M40,138 A68,68 0 0,1 96,52"
+        android:strokeColor="#7BD389" android:strokeWidth="8" android:strokeLineCap="round" />
+    <path
+        android:pathData="M96,52 A68,68 0 0,1 140,80"
+        android:strokeColor="#FFB454" android:strokeWidth="8" android:strokeLineCap="round" />
+    <path
+        android:pathData="M140,80 A68,68 0 0,1 152,138"
+        android:strokeColor="#FF6B6B" android:strokeWidth="8" android:strokeLineCap="round" />
+
+    <!-- Lightning bolt in the center -->
+    <path
+        android:pathData="M104,68 L78,110 L94,110 L86,140 L116,90 L100,90 Z"
+        android:fillColor="#FFD66B" />
+
+</vector>

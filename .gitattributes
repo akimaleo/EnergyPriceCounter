@@ -1,0 +1,15 @@
+# Force consistent line endings across platforms
+* text=auto eol=lf
+
+# Keep batch / cmd files with CRLF on checkout
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Treat binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.jar binary
+*.keystore binary
