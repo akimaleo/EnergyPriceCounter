@@ -24,24 +24,27 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kawa.energy.counter.location.CountryCentroids
+import energycounter.app.shared.generated.resources.Res
+import energycounter.app.shared.generated.resources.world_map
+import org.jetbrains.compose.resources.imageResource
 
 /**
- * Equirectangular world picker with country bounding-box wireframes.
- * Supports two-finger pinch/drag on touch, scroll-wheel zoom on desktop, and
- * single-tap to override the currently selected country.
+ * Equirectangular world picker with a real raster map background.
+ * Supports two-finger pinch / drag pan, single-tap to override, and
+ * Ctrl/Cmd + scroll-wheel zoom (so plain scroll still scrolls the page).
  */
 @Composable
 fun WorldMap(
@@ -50,15 +53,15 @@ fun WorldMap(
     modifier: Modifier = Modifier,
 ) {
     val bg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-    val grid = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-    val wireDefault = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
-    val wireSupported = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
-    val dotDefault = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.40f)
+    val tint = ColorFilter.tint(
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+        blendMode = androidx.compose.ui.graphics.BlendMode.Modulate,
+    )
+    val dotDefault = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
     val dotSupported = MaterialTheme.colorScheme.primary
     val highlight = MaterialTheme.colorScheme.tertiary
-    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
+    val worldImage = imageResource(Res.drawable.world_map)
 
     var scale by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
@@ -79,18 +82,19 @@ fun WorldMap(
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent()
-                            if (event.type == PointerEventType.Scroll) {
-                                val dy = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
-                                if (dy != 0f) {
-                                    val zoomFactor = if (dy < 0) 1.15f else 1f / 1.15f
-                                    val newScale = (scale * zoomFactor).coerceIn(1f, 12f)
-                                    val effective = newScale / scale
-                                    val centroid = event.changes.first().position
-                                    pan = (pan - centroid) * effective + centroid
-                                    scale = newScale
-                                    event.changes.forEach { it.consume() }
-                                }
-                            }
+                            if (event.type != PointerEventType.Scroll) continue
+                            val mods = event.keyboardModifiers
+                            // Only intercept when Ctrl (Win/Linux) or Cmd/Meta (macOS) is held.
+                            if (!mods.isCtrlPressed && !mods.isMetaPressed) continue
+                            val dy = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                            if (dy == 0f) continue
+                            val zoomFactor = if (dy < 0) 1.15f else 1f / 1.15f
+                            val newScale = (scale * zoomFactor).coerceIn(1f, 12f)
+                            val effective = newScale / scale
+                            val centroid = event.changes.first().position
+                            pan = (pan - centroid) * effective + centroid
+                            scale = newScale
+                            event.changes.forEach { it.consume() }
                         }
                     }
                 }
@@ -106,13 +110,9 @@ fun WorldMap(
                     detectTapGestures { tap ->
                         val w = size.width.toFloat()
                         val h = size.height.toFloat()
-                        // Inverse-transform the tap back into pre-pan/scale coordinates.
-                        val mapX = (tap.x - pan.x) / scale
-                        val mapY = (tap.y - pan.y) / scale
-                        // Stay within the world; out-of-bounds taps clamp to nearest edge.
-                        val clampedX = mapX.coerceIn(0f, w)
-                        val clampedY = mapY.coerceIn(0f, h)
-                        val (lat, lon) = unproject(clampedX, clampedY, w, h)
+                        val mapX = ((tap.x - pan.x) / scale).coerceIn(0f, w)
+                        val mapY = ((tap.y - pan.y) / scale).coerceIn(0f, h)
+                        val (lat, lon) = unproject(mapX, mapY, w, h)
                         CountryCentroids.nearest(lat, lon)?.let(onCountryPicked)
                     }
                 },
@@ -120,82 +120,45 @@ fun WorldMap(
             val w = size.width
             val h = size.height
 
-            // Apply pan & scale around the canvas content.
             withTransform({
                 translate(pan.x, pan.y)
                 scale(scale, scale, pivot = Offset.Zero)
             }) {
-                // Lat/lon graticule
-                (-180..180 step 30).forEach { lonDeg ->
-                    val x = ((lonDeg + 180) / 360f) * w
-                    drawLine(grid, Offset(x, 0f), Offset(x, h), strokeWidth = 1f / scale)
-                }
-                (-90..90 step 30).forEach { latDeg ->
-                    val y = ((90f - latDeg) / 180f) * h
-                    drawLine(grid, Offset(0f, y), Offset(w, y), strokeWidth = 1f / scale)
-                }
+                // Map background image, stretched to fill the equirectangular world rect.
+                drawImage(
+                    image = worldImage,
+                    dstOffset = IntOffset.Zero,
+                    dstSize = IntSize(w.toInt(), h.toInt()),
+                    colorFilter = tint,
+                    filterQuality = FilterQuality.Medium,
+                )
 
-                // Country bounding-box wireframes
-                val stroke = (1.4f / scale).coerceAtLeast(0.6f)
-                CountryCentroids.bboxes.forEach { (code, bbox) ->
-                    val isSupported = code in SUPPORTED
-                    val (x1, y1) = project(bbox.maxLat, bbox.minLon, w, h)
-                    val (x2, y2) = project(bbox.minLat, bbox.maxLon, w, h)
-                    val color = if (isSupported) wireSupported else wireDefault
-                    drawRect(
-                        color = color,
-                        topLeft = Offset(x1, y1),
-                        size = Size(x2 - x1, y2 - y1),
-                        style = Stroke(width = stroke),
-                    )
-                }
-
-                // Continent labels (only when zoomed out enough to keep them readable)
-                if (scale < 3.5f) {
-                    val style = TextStyle(
-                        color = labelColor,
-                        fontSize = (9f / scale.coerceAtLeast(1f)).sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    CONTINENT_LABELS.forEach { (text, point) ->
-                        val (px, py) = project(point.lat, point.lon, w, h)
-                        val layout = measurer.measure(text, style = style)
-                        drawText(
-                            textLayoutResult = layout,
-                            topLeft = Offset(
-                                px - layout.size.width / 2f,
-                                py - layout.size.height / 2f,
-                            ),
-                        )
-                    }
-                }
-
-                // Country dots (slightly larger for supported countries)
+                // Country dots (supported countries get a brighter, larger marker)
                 val baseR = with(density) { 2.5.dp.toPx() } / scale
                 CountryCentroids.all.forEach { (code, p) ->
                     val (cx, cy) = project(p.lat, p.lon, w, h)
                     val supported = code in SUPPORTED
                     drawCircle(
                         color = if (supported) dotSupported else dotDefault,
-                        radius = if (supported) baseR * 1.4f else baseR,
+                        radius = if (supported) baseR * 1.5f else baseR,
                         center = Offset(cx, cy),
                     )
                 }
 
-                // Highlight selected country (halo + pin + filled bbox)
+                // Selected-country halo + pin + bbox outline.
                 selectedCountry?.let { code ->
                     CountryCentroids.bboxFor(code)?.let { bbox ->
-                        val (bx1, by1) = project(bbox.maxLat, bbox.minLon, w, h)
-                        val (bx2, by2) = project(bbox.minLat, bbox.maxLon, w, h)
+                        val (x1, y1) = project(bbox.maxLat, bbox.minLon, w, h)
+                        val (x2, y2) = project(bbox.minLat, bbox.maxLon, w, h)
                         drawRect(
-                            color = highlight.copy(alpha = 0.22f),
-                            topLeft = Offset(bx1, by1),
-                            size = Size(bx2 - bx1, by2 - by1),
+                            color = highlight.copy(alpha = 0.20f),
+                            topLeft = Offset(x1, y1),
+                            size = Size(x2 - x1, y2 - y1),
                         )
                         drawRect(
                             color = highlight,
-                            topLeft = Offset(bx1, by1),
-                            size = Size(bx2 - bx1, by2 - by1),
+                            topLeft = Offset(x1, y1),
+                            size = Size(x2 - x1, y2 - y1),
                             style = Stroke(width = (2f / scale).coerceAtLeast(0.8f)),
                         )
                     }
@@ -217,7 +180,6 @@ fun WorldMap(
             }
         }
 
-        // Zoom controls in the top-right corner — non-pointer-blocking.
         ZoomBadge(
             scaleText = formatScale(scale),
             onReset = { scale = 1f; pan = Offset.Zero },
@@ -225,6 +187,22 @@ fun WorldMap(
                 .align(Alignment.TopEnd)
                 .padding(6.dp),
         )
+
+        // Hint in the bottom-left so the user knows about Ctrl/Cmd.
+        Surface(
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(6.dp),
+        ) {
+            Text(
+                "Ctrl/⌘ + scroll to zoom · drag to pan",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            )
+        }
     }
 }
 
@@ -270,17 +248,6 @@ private fun formatScale(s: Float): String {
     val frac = tenths % 10
     return "$whole.$frac×"
 }
-
-private data class LabelPoint(val lat: Double, val lon: Double)
-
-private val CONTINENT_LABELS: List<Pair<String, LabelPoint>> = listOf(
-    "N. AMERICA" to LabelPoint(48.0, -100.0),
-    "S. AMERICA" to LabelPoint(-15.0, -60.0),
-    "EUROPE" to LabelPoint(54.0, 15.0),
-    "AFRICA" to LabelPoint(5.0, 20.0),
-    "ASIA" to LabelPoint(40.0, 90.0),
-    "OCEANIA" to LabelPoint(-25.0, 140.0),
-)
 
 private val SUPPORTED: Set<String> = setOf(
     "DE", "AT", "NL", "BE", "FR", "CH", "LU", "PL", "PT", "ES", "IT", "DK",
