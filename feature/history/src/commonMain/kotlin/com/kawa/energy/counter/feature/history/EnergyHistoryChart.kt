@@ -1,7 +1,9 @@
 package com.kawa.energy.counter.feature.history
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,19 +12,29 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kawa.energy.counter.domain.SessionSample
+import kotlin.math.max
 
 @Composable
 fun EnergyHistoryChart(
@@ -41,7 +53,15 @@ fun EnergyHistoryChart(
         val kwhColor = MaterialTheme.colorScheme.primary
         val costColor = MaterialTheme.colorScheme.error
         val gridColor = MaterialTheme.colorScheme.outlineVariant
+        val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
         val currency = samples.first().currency
+
+        val stats = remember(samples) { computeStats(samples) }
+
+        // Compact summary strip above the chart.
+        SummaryStrip(stats = stats, currency = currency)
+
+        Spacer(Modifier.height(8.dp))
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -53,12 +73,41 @@ fun EnergyHistoryChart(
 
         Spacer(Modifier.height(6.dp))
 
+        val measurer = rememberTextMeasurer()
+        val density = LocalDensity.current
+        val labelStyleLeft = TextStyle(
+            color = kwhColor,
+            fontSize = 9.sp,
+        )
+        val labelStyleRight = TextStyle(
+            color = costColor,
+            fontSize = 9.sp,
+            textAlign = TextAlign.End,
+        )
+        val labelStyleAxis = TextStyle(
+            color = labelColor,
+            fontSize = 9.sp,
+            textAlign = TextAlign.Center,
+        )
+
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp)
-                .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                .height(260.dp)
+                .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
         ) {
+            // Plot area inset: reserve space for Y-axis labels (left, right) and
+            // X-axis labels (bottom).
+            val leftAxisPx = with(density) { 44.dp.toPx() }
+            val rightAxisPx = with(density) { 52.dp.toPx() }
+            val bottomAxisPx = with(density) { 18.dp.toPx() }
+            val plotLeft = leftAxisPx
+            val plotRight = size.width - rightAxisPx
+            val plotTop = 0f
+            val plotBottom = size.height - bottomAxisPx
+            val plotWidth = plotRight - plotLeft
+            val plotHeight = plotBottom - plotTop
+
             val tMin = samples.first().timestampMs.toDouble()
             val tMax = samples.last().timestampMs.toDouble()
             val tRange = (tMax - tMin).coerceAtLeast(1.0)
@@ -66,30 +115,60 @@ fun EnergyHistoryChart(
             val kwhMax = samples.maxOf { it.kwh }.coerceAtLeast(1e-9)
             val costMax = samples.maxOf { it.costInCurrency }.coerceAtLeast(1e-9)
 
-            val w = size.width
-            val h = size.height
+            fun xFor(t: Long) = plotLeft + (((t - tMin) / tRange) * plotWidth).toFloat()
+            fun yForKwh(v: Double) = plotBottom - ((v / kwhMax) * plotHeight).toFloat()
+            fun yForCost(v: Double) = plotBottom - ((v / costMax) * plotHeight).toFloat()
 
-            // Background gridlines (4 horizontal).
-            for (i in 0..4) {
-                val y = h * i / 4f
+            // Horizontal gridlines + Y-axis labels (4 segments → 5 tick marks)
+            val tickCount = 4
+            for (i in 0..tickCount) {
+                val frac = i.toFloat() / tickCount
+                val y = plotBottom - frac * plotHeight
                 drawLine(
                     color = gridColor,
-                    start = Offset(0f, y),
-                    end = Offset(w, y),
+                    start = Offset(plotLeft, y),
+                    end = Offset(plotRight, y),
                     strokeWidth = 1f,
+                )
+                val kwhValue = kwhMax * frac
+                val costValue = costMax * frac
+                val leftLayout = measurer.measure(formatKwh(kwhValue), labelStyleLeft)
+                val rightLayout = measurer.measure(formatCost(costValue), labelStyleRight)
+                drawText(
+                    textLayoutResult = leftLayout,
+                    topLeft = Offset(plotLeft - leftLayout.size.width - 4.dp.toPx(), y - leftLayout.size.height / 2f),
+                )
+                drawText(
+                    textLayoutResult = rightLayout,
+                    topLeft = Offset(plotRight + 4.dp.toPx(), y - rightLayout.size.height / 2f),
                 )
             }
 
-            fun xFor(t: Long) = (((t - tMin) / tRange) * w).toFloat()
-            fun yForKwh(v: Double) = (h - (v / kwhMax) * h).toFloat()
-            fun yForCost(v: Double) = (h - (v / costMax) * h).toFloat()
+            // Vertical gridlines + X-axis labels (start, mid, end relative offsets)
+            val xTicks = 3
+            for (i in 0 until xTicks) {
+                val frac = i.toFloat() / (xTicks - 1)
+                val x = plotLeft + frac * plotWidth
+                drawLine(
+                    color = gridColor.copy(alpha = 0.5f),
+                    start = Offset(x, plotTop),
+                    end = Offset(x, plotBottom),
+                    strokeWidth = 1f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f)),
+                )
+                val tAt = (tMin + frac * tRange).toLong()
+                val offsetFromEnd = samples.last().timestampMs - tAt
+                val label = humanOffset(offsetFromEnd)
+                val layout = measurer.measure(label, labelStyleAxis)
+                val tx = (x - layout.size.width / 2f).coerceIn(plotLeft - 8f, plotRight - layout.size.width + 8f)
+                drawText(
+                    textLayoutResult = layout,
+                    topLeft = Offset(tx, plotBottom + 4.dp.toPx()),
+                )
+            }
 
-            // Split samples into contiguous segments wherever the gap between
-            // consecutive timestamps exceeds the inactivity threshold (~3x the
-            // sampling interval). This produces visual gaps for paused sessions.
-            val gapThresholdMs = INACTIVITY_GAP_MS
-            val segments = splitIntoSegments(samples, gapThresholdMs)
-
+            // Series — render in segments so paused sessions get visual gaps.
+            val segments = splitIntoSegments(samples, INACTIVITY_GAP_MS)
             segments.forEach { segment ->
                 val kwhPath = Path().apply {
                     segment.forEachIndexed { i, s ->
@@ -105,10 +184,9 @@ fun EnergyHistoryChart(
                         if (i == 0) moveTo(x, y) else lineTo(x, y)
                     }
                 }
-                drawPath(kwhPath, color = kwhColor, style = Stroke(width = 3f, cap = StrokeCap.Round))
-                drawPath(costPath, color = costColor, style = Stroke(width = 3f, cap = StrokeCap.Round))
+                drawPath(kwhPath, color = kwhColor, style = Stroke(width = 2.5f, cap = StrokeCap.Round))
+                drawPath(costPath, color = costColor, style = Stroke(width = 2.5f, cap = StrokeCap.Round))
 
-                // Draw a small dot at segment boundaries so isolated samples are still visible.
                 if (segment.size == 1) {
                     val s = segment[0]
                     val x = xFor(s.timestampMs)
@@ -116,16 +194,86 @@ fun EnergyHistoryChart(
                     drawCircle(costColor, radius = 3f, center = Offset(x, yForCost(s.costInCurrency)))
                 }
             }
+
+            // Highlight the latest sample with filled+ringed dots on both series.
+            val last = samples.last()
+            drawEndpointMarker(Offset(xFor(last.timestampMs), yForKwh(last.kwh)), kwhColor)
+            drawEndpointMarker(Offset(xFor(last.timestampMs), yForCost(last.costInCurrency)), costColor)
         }
 
-        AxisLabels(samples)
+        Spacer(Modifier.height(4.dp))
+        FooterRow(stats = stats, currency = currency)
+    }
+}
+
+private fun DrawScope.drawEndpointMarker(center: Offset, color: Color) {
+    drawCircle(color.copy(alpha = 0.25f), radius = 7f, center = center)
+    drawCircle(color, radius = 3.5f, center = center)
+}
+
+@Composable
+private fun SummaryStrip(stats: ChartStats, currency: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SummaryItem(
+            value = formatKwh(stats.totalKwh),
+            unit = "kWh",
+            label = "Total",
+            accent = MaterialTheme.colorScheme.primary,
+        )
+        SummaryItem(
+            value = formatCost(stats.totalCost),
+            unit = currency,
+            label = "Cost",
+            accent = MaterialTheme.colorScheme.error,
+        )
+        SummaryItem(
+            value = formatWatts(stats.avgWatts),
+            unit = "W avg",
+            label = "Power",
+            accent = MaterialTheme.colorScheme.tertiary,
+        )
+        SummaryItem(
+            value = stats.sessions.toString(),
+            unit = if (stats.sessions == 1) "session" else "sessions",
+            label = "Active",
+            accent = MaterialTheme.colorScheme.tertiary,
+        )
+    }
+}
+
+@Composable
+private fun SummaryItem(value: String, unit: String, label: String, accent: Color) {
+    Column(horizontalAlignment = Alignment.Start) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium,
+                color = accent,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                unit,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 2.dp),
+            )
+        }
     }
 }
 
 @Composable
 private fun LegendDot(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        androidx.compose.foundation.layout.Box(
+        Box(
             modifier = Modifier
                 .size(10.dp)
                 .background(color, RoundedCornerShape(5.dp)),
@@ -135,51 +283,98 @@ private fun LegendDot(color: Color, label: String) {
 }
 
 @Composable
-private fun AxisLabels(samples: List<SessionSample>) {
-    val first = samples.first()
-    val last = samples.last()
-    val maxKwh = samples.maxOf { it.kwh }
-    val maxCost = samples.maxOf { it.costInCurrency }
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                "kWh: 0 → ${kwhFmt(maxKwh)}",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "${first.currency}: 0 → ${costFmt(maxCost)}",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                "span ${humanDuration(last.timestampMs - first.timestampMs)} · ${samples.size} samples",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
+private fun FooterRow(stats: ChartStats, currency: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            "span ${humanDuration(stats.spanMs)} · ${stats.sampleCount} samples",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "rate ≈ ${formatCost(stats.costPerHour)} $currency / h",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
-private fun kwhFmt(v: Double): String {
-    val factor = 1000000.0
-    val rounded = kotlin.math.round(v * factor) / factor
-    return rounded.toString()
+// --- Stats ------------------------------------------------------------------
+
+private data class ChartStats(
+    val totalKwh: Double,
+    val totalCost: Double,
+    val sessions: Int,
+    val avgWatts: Double,
+    val sampleCount: Int,
+    val spanMs: Long,
+    val costPerHour: Double,
+)
+
+private fun computeStats(samples: List<SessionSample>): ChartStats {
+    if (samples.isEmpty()) {
+        return ChartStats(0.0, 0.0, 0, 0.0, 0, 0L, 0.0)
+    }
+    val segments = splitIntoSegments(samples, INACTIVITY_GAP_MS)
+    var totalKwh = 0.0
+    var totalCost = 0.0
+    var totalActiveMs = 0L
+    segments.forEach { seg ->
+        if (seg.isEmpty()) return@forEach
+        totalKwh += max(0.0, seg.last().kwh - seg.first().kwh)
+        totalCost += max(0.0, seg.last().costInCurrency - seg.first().costInCurrency)
+        totalActiveMs += (seg.last().timestampMs - seg.first().timestampMs).coerceAtLeast(0L)
+    }
+    val avgWatts = if (totalActiveMs > 0) totalKwh * 1000.0 * 3_600_000.0 / totalActiveMs else 0.0
+    val spanMs = samples.last().timestampMs - samples.first().timestampMs
+    val costPerHour = if (totalActiveMs > 0) totalCost * 3_600_000.0 / totalActiveMs else 0.0
+    return ChartStats(
+        totalKwh = totalKwh,
+        totalCost = totalCost,
+        sessions = segments.count { it.isNotEmpty() },
+        avgWatts = avgWatts,
+        sampleCount = samples.size,
+        spanMs = spanMs,
+        costPerHour = costPerHour,
+    )
 }
-private fun costFmt(v: Double): String {
-    val factor = 10000.0
-    val rounded = kotlin.math.round(v * factor) / factor
-    return rounded.toString()
+
+// --- Formatters -------------------------------------------------------------
+
+private fun formatKwh(v: Double): String = roundTo(v, 4)
+private fun formatCost(v: Double): String = roundTo(v, 4)
+private fun formatWatts(v: Double): String = roundTo(v, 1)
+
+private fun roundTo(value: Double, digits: Int): String {
+    if (value.isNaN() || value.isInfinite()) return value.toString()
+    val factor = generateSequence(1.0) { it * 10.0 }.elementAt(digits)
+    val rounded = kotlin.math.round(value * factor) / factor
+    val whole = rounded.toLong()
+    val fraction = kotlin.math.abs(rounded - whole)
+    val fracStr = ((fraction * factor).toLong()).toString().padStart(digits, '0')
+    val sign = if (rounded < 0 && whole == 0L) "-" else ""
+    return if (digits == 0) "$sign$whole" else "$sign$whole.$fracStr"
 }
+
 private fun humanDuration(ms: Long): String = when {
+    ms <= 0 -> "0s"
     ms < 60_000 -> "${ms / 1000}s"
     ms < 3_600_000 -> "${ms / 60_000}m ${(ms / 1000) % 60}s"
     else -> "${ms / 3_600_000}h ${(ms / 60_000) % 60}m"
+}
+
+/** "now", "−12m", "−2h 05m" — used for x-axis labels relative to the latest sample. */
+private fun humanOffset(msAgo: Long): String = when {
+    msAgo <= 5_000 -> "now"
+    msAgo < 60_000 -> "−${msAgo / 1000}s"
+    msAgo < 3_600_000 -> "−${msAgo / 60_000}m"
+    else -> {
+        val h = msAgo / 3_600_000
+        val m = (msAgo / 60_000) % 60
+        if (m == 0L) "−${h}h" else "−${h}h ${m.toString().padStart(2, '0')}m"
+    }
 }
 
 // Samples are persisted every ~5s while a session is active. A gap > 15s implies
