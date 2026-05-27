@@ -86,12 +86,28 @@ server/        ── Ktor server placeholder
 
 ## Notes on accuracy
 
-The desktop monitor uses CPU load × estimated TDP because Windows doesn't expose
-RAPL/MSR-based package power to user-space without a signed kernel driver. For
-real package power you can layer in [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)
-running its HTTP endpoint at `localhost:8085/data.json`, or a smart plug (Shelly,
-Tasmota, Tapo) for true wall-socket measurement. Both are easy to add via a new
-`PowerMonitor` actual.
+EnergyCounter auto-detects the most accurate power source available on Windows:
+
+1. **PSU telemetry via [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)** — supported
+   Corsair AXi/HXi/RMi, NZXT C-series, EVGA Pxx/Txx and Seasonic Prime PSUs
+   report total input/output wattage over USB. This is the closest to wall-socket draw.
+2. **CPU package + GPU + DRAM via LHM RAPL / NVAPI / ADL** — sum of the three
+   biggest consumers in the box (typically ~80% of real draw).
+3. **CPU load × estimated TDP via OSHI** — fallback when LHM isn't running.
+   Accurate to ±50%.
+
+### Enabling LibreHardwareMonitor
+
+1. Download from <https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases> and run it (it ships a signed kernel driver).
+2. `Options → Remote Web Server → Run` (default port `8085`).
+3. Optionally `Options → Run On Windows Startup` so it survives reboots.
+
+EnergyCounter probes `http://localhost:8085/data.json` on startup; if it
+responds within 1.5 s, the LHM monitor is selected automatically and the source
+label in the gauge changes to `PSU telemetry · <vendor>` or `LHM components`.
+
+For wall-socket truth, layer a smart plug (Shelly Plus Plug S, Tapo P110,
+Tasmota) on top — straightforward to add as another `PowerMonitor` actual.
 
 ## License
 

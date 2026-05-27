@@ -14,7 +14,7 @@ import oshi.SystemInfo
 import oshi.hardware.CentralProcessor
 
 actual fun createPowerMonitor(config: MonitorConfig): PowerMonitor =
-    JvmPowerMonitor(config)
+    if (LhmPowerMonitor.isAvailable()) LhmPowerMonitor(config) else JvmPowerMonitor(config)
 
 private class JvmPowerMonitor(
     private val config: MonitorConfig,
