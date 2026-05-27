@@ -12,9 +12,12 @@ import com.kawa.energy.counter.location.LocationInfo
 import com.kawa.energy.counter.location.LocationProvider
 import com.kawa.energy.counter.location.LocationResult
 import com.kawa.energy.counter.location.createLocationProvider
+import com.kawa.energy.counter.monitor.InstallResult
 import com.kawa.energy.counter.monitor.MonitorConfig
 import com.kawa.energy.counter.monitor.PowerMonitor
+import com.kawa.energy.counter.monitor.PowerSourceInstaller
 import com.kawa.energy.counter.monitor.createPowerMonitor
+import com.kawa.energy.counter.monitor.createPowerSourceInstaller
 import com.kawa.energy.counter.price.FixedPriceProvider
 import com.kawa.energy.counter.price.PriceProvider
 import com.kawa.energy.counter.price.PriceProviderResolver
@@ -36,8 +39,18 @@ data class EnergyUiState(
     val location: LocationInfo? = null,
     val locationStatus: LocationStatus = LocationStatus.Idle,
     val history: List<SessionSample> = emptyList(),
+    val powerSourceLabel: String? = null,
+    val installStatus: InstallStatus = InstallStatus.Idle,
     val errorMessage: String? = null,
 )
+
+sealed class InstallStatus {
+    data object Idle : InstallStatus()
+    data class InProgress(val message: String) : InstallStatus()
+    data class Done(val message: String) : InstallStatus()
+    data class Failed(val message: String) : InstallStatus()
+    data object NotSupported : InstallStatus()
+}
 
 enum class PriceSource { Auto, Fixed }
 
@@ -56,6 +69,7 @@ class EnergyViewModel : ViewModel() {
     private var monitor: PowerMonitor? = null
     private val locationProvider: LocationProvider = createLocationProvider()
     private val store: SessionStore = createSessionStore()
+    private val installer: PowerSourceInstaller = createPowerSourceInstaller()
     private var lastPersistMs: Long = 0L
     private val persistIntervalMs: Long = 5_000L
 
@@ -213,7 +227,39 @@ class EnergyViewModel : ViewModel() {
                 watts = reading.watts,
                 kwh = accumulator.totalKwh,
                 cost = cost,
+                powerSourceLabel = reading.sourceLabel ?: it.powerSourceLabel,
             )
+        }
+    }
+
+    val isInstallerSupported: Boolean get() = installer.isSupported
+
+    fun installPowerSource() {
+        if (!installer.isSupported) {
+            _state.update { it.copy(installStatus = InstallStatus.NotSupported) }
+            return
+        }
+        if (_state.value.installStatus is InstallStatus.InProgress) return
+        _state.update { it.copy(installStatus = InstallStatus.InProgress("Starting…")) }
+        viewModelScope.launch {
+            val result = installer.install { msg ->
+                _state.update { it.copy(installStatus = InstallStatus.InProgress(msg)) }
+            }
+            _state.update {
+                it.copy(
+                    installStatus = when (result) {
+                        is InstallResult.Success -> InstallStatus.Done(result.message)
+                        is InstallResult.Failure -> InstallStatus.Failed(result.message)
+                        InstallResult.NotSupported -> InstallStatus.NotSupported
+                    }
+                )
+            }
+            if (result is InstallResult.Success) {
+                // Restart the monitor so the new source (LHM) is picked up.
+                val wasRunning = _state.value.running
+                if (wasRunning) stop()
+                if (wasRunning) start()
+            }
         }
     }
 

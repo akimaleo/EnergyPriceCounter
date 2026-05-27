@@ -130,7 +130,7 @@ fun App() {
                         Spacer(Modifier.height(8.dp))
                         SecondaryMetrics(state)
                         PriceSourceSection(state, vm)
-                        if (platform.isDesktop) DesktopDataSourceCard(state)
+                        if (platform.isDesktop) DesktopDataSourceCard(state, vm)
                         HistorySection(state, vm)
                         state.errorMessage?.let { ErrorPill(it) }
                         Spacer(Modifier.height(24.dp))
@@ -581,20 +581,83 @@ private fun LocationBlock(state: EnergyUiState, vm: EnergyViewModel) {
 }
 
 @Composable
-private fun DesktopDataSourceCard(state: EnergyUiState) {
+private fun DesktopDataSourceCard(state: EnergyUiState, vm: EnergyViewModel) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Data sources", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            KvRow("Power sampling", "OSHI CPU load × estimated TDP")
+            KvRow(
+                "Power sampling",
+                state.powerSourceLabel ?: "OSHI CPU load × estimated TDP (LHM not detected)",
+            )
             KvRow("Geolocation", state.location?.provider?.ifBlank { "—" } ?: "—")
             KvRow("Country resolved", state.location?.countryCode ?: "—")
             KvRow("Price API", state.rate?.source ?: "—")
             KvRow("Endpoint", state.rate?.endpoint ?: "—")
+
+            LhmInstallControl(state, vm)
+
             Text(
                 "Sessions are appended to ~/.energy-counter/sessions.ndjson",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LhmInstallControl(state: EnergyUiState, vm: EnergyViewModel) {
+    val usingLhm = state.powerSourceLabel?.contains("LHM", ignoreCase = true) == true ||
+        state.powerSourceLabel?.contains("PSU telemetry", ignoreCase = true) == true
+    val installing = state.installStatus is com.kawa.energy.counter.ui.InstallStatus.InProgress
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { vm.installPowerSource() },
+                enabled = vm.isInstallerSupported && !installing,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+            ) {
+                Text(if (usingLhm) "Reinstall LibreHardwareMonitor" else "Install LibreHardwareMonitor")
+            }
+            if (installing) {
+                CircularProgressIndicator(modifier = Modifier.height(20.dp))
+            }
+        }
+
+        when (val s = state.installStatus) {
+            com.kawa.energy.counter.ui.InstallStatus.Idle -> Unit
+            is com.kawa.energy.counter.ui.InstallStatus.InProgress -> Text(
+                s.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            is com.kawa.energy.counter.ui.InstallStatus.Done -> Text(
+                "✓ ${s.message}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            is com.kawa.energy.counter.ui.InstallStatus.Failed -> Text(
+                "✗ ${s.message}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+            com.kawa.energy.counter.ui.InstallStatus.NotSupported -> Text(
+                "Installer is only available on Windows.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (!vm.isInstallerSupported) {
+            Text(
+                "LibreHardwareMonitor is Windows-only. On other OSes, the OSHI CPU estimate is used.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
