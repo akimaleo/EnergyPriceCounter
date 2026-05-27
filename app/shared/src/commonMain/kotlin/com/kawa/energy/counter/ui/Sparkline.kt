@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import com.kawa.energy.counter.history.SessionSample
+import com.kawa.energy.counter.domain.SessionSample
 
 /**
  * Tiny line chart for use inside dense headers / list rows.

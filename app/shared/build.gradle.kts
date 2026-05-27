@@ -40,11 +40,10 @@ kotlin {
     sourceSets {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
-            implementation(libs.ktor.clientOkHttp)
-            implementation(libs.androidx.core.ktx)
         }
         commonMain.dependencies {
-            api(projects.core)
+            api(projects.core.domain)
+            api(projects.core.data)
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
@@ -54,21 +53,9 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.coroutinesCore)
-            implementation(libs.kotlinx.serializationJson)
-            implementation(libs.kotlinx.datetime)
-            implementation(libs.ktor.clientCore)
-            implementation(libs.ktor.clientContentNegotiation)
-            implementation(libs.ktor.serializationKotlinxJson)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
-        }
-        jvmMain.dependencies {
-            implementation(libs.ktor.clientOkHttp)
-            implementation(libs.oshi.core)
-        }
-        iosMain.dependencies {
-            implementation(libs.ktor.clientDarwin)
         }
     }
 }

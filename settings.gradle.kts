@@ -35,5 +35,6 @@ plugins {
 include(":app:androidApp")
 include(":app:desktopApp")
 include(":app:shared")
-include(":core")
+include(":core:domain")
+include(":core:data")
 include(":server")

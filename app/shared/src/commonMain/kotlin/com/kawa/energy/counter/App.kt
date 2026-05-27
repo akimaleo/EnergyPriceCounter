@@ -303,8 +303,8 @@ private fun TrendCard(
     digits: Int,
     unit: String,
     color: Color,
-    select: (com.kawa.energy.counter.history.SessionSample) -> Double,
-    samples: List<com.kawa.energy.counter.history.SessionSample>,
+    select: (com.kawa.energy.counter.domain.SessionSample) -> Double,
+    samples: List<com.kawa.energy.counter.domain.SessionSample>,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -461,7 +461,7 @@ private fun locationPillLabel(state: EnergyUiState): String {
  * contribution is the delta between the latest and earliest sample within the window;
  * a new session is recognised by a timestamp gap > 15s or a kWh reset to a smaller value.
  */
-private fun recentUsageKwh(samples: List<com.kawa.energy.counter.history.SessionSample>, windowMs: Long): Double {
+private fun recentUsageKwh(samples: List<com.kawa.energy.counter.domain.SessionSample>, windowMs: Long): Double {
     if (samples.isEmpty()) return 0.0
     // platform-agnostic "now" — use the last persisted timestamp as the upper bound
     // so we don't depend on Clock.System availability in commonMain.

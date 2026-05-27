@@ -33,7 +33,7 @@ import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.kawa.energy.counter.location.CountryCentroids
+import com.kawa.energy.counter.data.location.CountryCentroids
 import energycounter.app.shared.generated.resources.Res
 import energycounter.app.shared.generated.resources.world_wireframe
 import org.jetbrains.compose.resources.painterResource
