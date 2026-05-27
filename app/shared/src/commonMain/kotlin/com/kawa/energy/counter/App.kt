@@ -384,25 +384,118 @@ private fun CollapsedSparkPair(state: EnergyUiState) {
 
 @Composable
 private fun Header(state: EnergyUiState) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column {
-            Text(
-                "EnergyCounter",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(
+                    "EnergyCounter",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "Live power & electricity cost",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            StatusBadge(state.running)
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HeaderPill(
+                icon = "📍",
+                label = locationPillLabel(state),
+                accent = MaterialTheme.colorScheme.tertiary,
             )
-            Text(
-                "Live power & electricity cost",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            HeaderPill(
+                icon = "⚡",
+                label = "12h · ${roundKwh(recentUsageKwh(state.history, 12 * 3_600_000L))} kWh",
+                accent = MaterialTheme.colorScheme.primary,
             )
         }
-        StatusBadge(state.running)
     }
+}
+
+@Composable
+private fun HeaderPill(icon: String, label: String, accent: Color) {
+    Row(
+        modifier = Modifier
+            .background(accent.copy(alpha = 0.15f), RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(icon, style = MaterialTheme.typography.labelMedium)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = accent,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private fun locationPillLabel(state: EnergyUiState): String {
+    val loc = state.location
+    return when {
+        loc == null -> "Detecting location…"
+        loc.label.isNotBlank() && loc.label != loc.countryCode ->
+            "${loc.countryCode} · ${loc.label}"
+        else -> loc.countryCode
+    }
+}
+
+/**
+ * Sum of kWh consumed in the last [windowMs] milliseconds across all sessions.
+ * Each session's kWh column is monotonically increasing from 0, so the per-session
+ * contribution is the delta between the latest and earliest sample within the window;
+ * a new session is recognised by a timestamp gap > 15s or a kWh reset to a smaller value.
+ */
+private fun recentUsageKwh(samples: List<com.kawa.energy.counter.history.SessionSample>, windowMs: Long): Double {
+    if (samples.isEmpty()) return 0.0
+    // platform-agnostic "now" — use the last persisted timestamp as the upper bound
+    // so we don't depend on Clock.System availability in commonMain.
+    val now = samples.last().timestampMs
+    val cutoff = now - windowMs
+    val window = samples.filter { it.timestampMs >= cutoff }
+    if (window.isEmpty()) return 0.0
+
+    var total = 0.0
+    var segmentStartKwh = window.first().kwh
+    var segmentLastKwh = window.first().kwh
+    var prevTs = window.first().timestampMs
+
+    for (i in 1 until window.size) {
+        val s = window[i]
+        val gap = s.timestampMs - prevTs
+        val sessionReset = s.kwh < segmentLastKwh - 1e-9
+        if (gap > 15_000L || sessionReset) {
+            total += segmentLastKwh - segmentStartKwh
+            segmentStartKwh = s.kwh
+        }
+        segmentLastKwh = s.kwh
+        prevTs = s.timestampMs
+    }
+    total += segmentLastKwh - segmentStartKwh
+    return total
+}
+
+private fun roundKwh(v: Double): String {
+    val r = kotlin.math.round(v * 10000.0) / 10000.0
+    val whole = r.toLong()
+    val frac = (kotlin.math.round((r - whole) * 10000.0)).toLong()
+        .toString().padStart(4, '0')
+    return "$whole.$frac"
 }
 
 @Composable
