@@ -72,7 +72,7 @@ class LhmInstaller : PowerSourceInstaller {
                 onProgress("Enabling web server on port 8085…")
                 writeConfig(exe.parentFile)
 
-                onProgress("Launching (Windows will ask for admin rights)…")
+                onProgress("Requesting admin rights — accept the Windows UAC prompt…")
                 launchProcess(exe)
 
                 onProgress("Waiting for web server…")
@@ -181,14 +181,34 @@ class LhmInstaller : PowerSourceInstaller {
     }
 
     private fun launchProcess(exe: File) {
-        // ProcessBuilder cannot itself request elevation, but the LHM exe is
-        // marked requireAdministrator in its manifest, so Windows will pop
-        // UAC automatically when launched.
-        ProcessBuilder(exe.absolutePath)
-            .directory(exe.parentFile)
+        // ProcessBuilder calls CreateProcess directly, which fails with
+        // ERROR_ELEVATION_REQUIRED for apps marked requireAdministrator and
+        // never shows a UAC prompt. To trigger the prompt we need ShellExecute
+        // with the "runas" verb. PowerShell's Start-Process exposes that:
+        //   Start-Process -FilePath '<exe>' -WorkingDirectory '<dir>' -Verb RunAs
+        // If the user cancels UAC, PowerShell exits with a non-zero status —
+        // we surface that through process.waitFor() below.
+        val escapedExe = exe.absolutePath.replace("'", "''")
+        val escapedDir = exe.parentFile.absolutePath.replace("'", "''")
+        val psCommand =
+            "Start-Process -FilePath '$escapedExe' -WorkingDirectory '$escapedDir' -Verb RunAs"
+        val process = ProcessBuilder(
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle", "Hidden",
+            "-Command", psCommand,
+        )
             .redirectErrorStream(true)
             .redirectOutput(ProcessBuilder.Redirect.DISCARD)
             .start()
+        val exited = process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)
+        if (exited && process.exitValue() != 0) {
+            // Most commonly: user cancelled the UAC prompt (exit 1).
+            throw RuntimeException(
+                "Couldn't elevate LibreHardwareMonitor — did you accept the Windows admin prompt?"
+            )
+        }
     }
 
     companion object {
