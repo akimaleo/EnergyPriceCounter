@@ -25,7 +25,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -33,13 +32,11 @@ import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.kawa.energy.counter.location.CountryCentroids
 import energycounter.app.shared.generated.resources.Res
-import energycounter.app.shared.generated.resources.world_map
-import org.jetbrains.compose.resources.imageResource
+import energycounter.app.shared.generated.resources.world_wireframe
+import org.jetbrains.compose.resources.painterResource
 
 /**
  * Equirectangular world picker with a real raster map background.
@@ -52,16 +49,17 @@ fun WorldMap(
     onCountryPicked: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-    val tint = ColorFilter.tint(
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-        blendMode = androidx.compose.ui.graphics.BlendMode.Modulate,
+    val bg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f)
+    // Tinting the vector wireframe to onSurface keeps contrast correct in
+    // both light and dark themes (dark lines on light bg, bright on dark).
+    val wireframeTint = ColorFilter.tint(
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
     )
-    val dotDefault = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+    val dotDefault = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
     val dotSupported = MaterialTheme.colorScheme.primary
     val highlight = MaterialTheme.colorScheme.tertiary
     val density = LocalDensity.current
-    val worldImage = imageResource(Res.drawable.world_map)
+    val worldPainter = painterResource(Res.drawable.world_wireframe)
 
     var scale by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
@@ -124,14 +122,10 @@ fun WorldMap(
                 translate(pan.x, pan.y)
                 scale(scale, scale, pivot = Offset.Zero)
             }) {
-                // Map background image, stretched to fill the equirectangular world rect.
-                drawImage(
-                    image = worldImage,
-                    dstOffset = IntOffset.Zero,
-                    dstSize = IntSize(w.toInt(), h.toInt()),
-                    colorFilter = tint,
-                    filterQuality = FilterQuality.Medium,
-                )
+                // Vector wireframe map drawn to fill the equirectangular world rect.
+                with(worldPainter) {
+                    draw(size = Size(w, h), colorFilter = wireframeTint)
+                }
 
                 // Country dots (supported countries get a brighter, larger marker)
                 val baseR = with(density) { 2.5.dp.toPx() } / scale
