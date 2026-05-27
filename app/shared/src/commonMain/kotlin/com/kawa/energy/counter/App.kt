@@ -92,7 +92,7 @@ fun App() {
             }
 
             val density = LocalDensity.current
-            val maxHeaderHeightDp = 360.dp
+            val maxHeaderHeightDp = 480.dp
             val minHeaderHeightDp = 64.dp
             val maxPx = with(density) { maxHeaderHeightDp.toPx() }
             val minPx = with(density) { minHeaderHeightDp.toPx() }
@@ -182,7 +182,7 @@ private fun CollapsingPowerHeader(
                     Spacer(Modifier.height(12.dp))
                     Header(state)
                     val max = chooseGaugeMax(state.watts)
-                    val gaugeSize = (160 + (100 * expandFraction)).toInt()
+                    val gaugeSize = (150 + (70 * expandFraction)).toInt()
                     SpeedometerGauge(
                         value = state.watts,
                         min = 0.0,
@@ -342,7 +342,7 @@ private fun TrendCard(
                 color = color,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(32.dp),
+                    .height(56.dp),
                 strokeWidth = 2.5f,
             )
         }

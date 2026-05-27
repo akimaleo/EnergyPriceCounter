@@ -5,6 +5,14 @@ object CountryCentroids {
 
     data class Point(val lat: Double, val lon: Double)
 
+    /** Geographic bounding box of a country (mainland only — overseas territories ignored). */
+    data class BBox(
+        val minLat: Double,
+        val maxLat: Double,
+        val minLon: Double,
+        val maxLon: Double,
+    )
+
     val all: Map<String, Point> = mapOf(
         // Awattar coverage
         "DE" to Point(51.2, 10.4),
@@ -68,6 +76,70 @@ object CountryCentroids {
     )
 
     fun forCountry(code: String): Point? = all[code.uppercase()]
+
+    fun bboxFor(code: String): BBox? = bboxes[code.uppercase()]
+
+    /** Mainland bounding boxes — coarse, used to render a wireframe overlay. */
+    val bboxes: Map<String, BBox> = mapOf(
+        // Awattar / energy-charts coverage
+        "DE" to BBox(47.3, 55.0, 5.9, 15.0),
+        "AT" to BBox(46.4, 49.0, 9.5, 17.2),
+        "NL" to BBox(50.7, 53.5, 3.4, 7.2),
+        "BE" to BBox(49.5, 51.5, 2.5, 6.4),
+        "FR" to BBox(42.3, 51.1, -5.0, 9.0),
+        "CH" to BBox(45.8, 47.8, 5.9, 10.5),
+        "LU" to BBox(49.4, 50.2, 5.7, 6.5),
+        "PL" to BBox(49.0, 54.8, 14.1, 24.1),
+        "PT" to BBox(37.0, 42.2, -9.5, -6.2),
+        "ES" to BBox(35.9, 43.8, -9.3, 4.3),
+        "IT" to BBox(35.5, 47.1, 6.6, 18.5),
+        "DK" to BBox(54.6, 57.7, 8.1, 12.7),
+        "NO" to BBox(58.0, 71.0, 4.6, 31.0),
+        "SE" to BBox(55.3, 69.0, 11.0, 24.2),
+        "FI" to BBox(59.8, 70.1, 20.5, 31.6),
+        "HU" to BBox(45.7, 48.6, 16.1, 22.9),
+        "CZ" to BBox(48.5, 51.1, 12.1, 18.9),
+        "SK" to BBox(47.7, 49.6, 16.8, 22.6),
+        "IE" to BBox(51.4, 55.4, -10.5, -5.4),
+        "GR" to BBox(34.8, 41.7, 19.4, 28.2),
+        "HR" to BBox(42.4, 46.6, 13.5, 19.4),
+        "SI" to BBox(45.4, 46.9, 13.4, 16.6),
+        "RO" to BBox(43.6, 48.3, 20.3, 29.7),
+        "BG" to BBox(41.2, 44.2, 22.4, 28.6),
+        "EE" to BBox(57.5, 59.7, 21.8, 28.2),
+        "LV" to BBox(55.7, 58.1, 20.9, 28.2),
+        "LT" to BBox(53.9, 56.5, 20.9, 26.8),
+        "RS" to BBox(42.2, 46.2, 18.8, 23.0),
+        // Wider context
+        "GB" to BBox(49.9, 60.8, -8.6, 1.8),
+        "IS" to BBox(63.3, 66.6, -24.5, -13.5),
+        "UA" to BBox(44.4, 52.4, 22.1, 40.2),
+        "RU" to BBox(41.2, 77.0, 27.0, 180.0),
+        "TR" to BBox(36.0, 42.1, 26.0, 44.8),
+        "EG" to BBox(22.0, 31.7, 24.7, 36.9),
+        "MA" to BBox(27.7, 35.9, -13.2, -1.0),
+        "NG" to BBox(4.3, 13.9, 2.7, 14.7),
+        "KE" to BBox(-4.7, 5.0, 33.9, 41.9),
+        "ZA" to BBox(-34.8, -22.1, 16.5, 32.9),
+        "SA" to BBox(16.4, 32.2, 34.5, 55.7),
+        "IL" to BBox(29.5, 33.3, 34.3, 35.9),
+        "IN" to BBox(8.0, 35.5, 68.1, 97.4),
+        "CN" to BBox(18.2, 53.6, 73.5, 134.8),
+        "JP" to BBox(31.0, 45.5, 129.5, 145.8),
+        "KR" to BBox(33.2, 38.6, 125.1, 129.6),
+        "ID" to BBox(-10.4, 6.0, 95.0, 141.0),
+        "TH" to BBox(5.6, 20.5, 97.3, 105.6),
+        "VN" to BBox(8.6, 23.4, 102.1, 109.5),
+        "PH" to BBox(4.6, 21.1, 116.9, 126.6),
+        "AU" to BBox(-43.6, -10.7, 113.2, 153.6),
+        "NZ" to BBox(-46.6, -34.4, 166.5, 178.6),
+        "US" to BBox(24.5, 49.4, -125.0, -66.9),
+        "CA" to BBox(41.7, 70.0, -141.0, -52.6),
+        "MX" to BBox(14.5, 32.7, -118.4, -86.7),
+        "BR" to BBox(-33.7, 5.3, -73.9, -34.7),
+        "AR" to BBox(-55.0, -21.8, -73.6, -53.6),
+        "CL" to BBox(-55.9, -17.5, -75.6, -66.4),
+    )
 
     /** Find the country whose centroid is closest to the given lat/lon (Euclidean on lat/lon). */
     fun nearest(lat: Double, lon: Double): String? {
