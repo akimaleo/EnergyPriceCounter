@@ -41,6 +41,7 @@ import androidx.compose.ui.window.WindowScope
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.kawa.energy.counter.feature.dashboard.App
 import java.awt.MouseInfo
 import java.awt.Point
 

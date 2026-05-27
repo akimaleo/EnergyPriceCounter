@@ -12,7 +12,8 @@ kotlin {
     }
 }
 dependencies {
-    implementation(projects.app.shared)
+    implementation(projects.feature.dashboard)
+    implementation(projects.core.data)
 
     implementation(libs.androidx.activity.compose)
 
