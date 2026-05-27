@@ -46,12 +46,33 @@ class LhmInstaller : PowerSourceInstaller {
         withContext(Dispatchers.IO) {
             if (!isSupported) return@withContext InstallResult.NotSupported
             try {
+                // Already running? Treat that as success — the user clicked Install
+                // because EnergyCounter probed once at startup and missed it, not
+                // because anything is actually wrong. No need to redownload.
+                if (LhmPowerMonitor.isAvailable()) {
+                    return@withContext InstallResult.Success(
+                        "LibreHardwareMonitor is already running. Restart the session to use it."
+                    )
+                }
+
                 onProgress("Looking up latest LibreHardwareMonitor release…")
                 val asset = fetchLatestZipAsset()
                     ?: return@withContext InstallResult.Failure("No zip asset found in latest release")
 
                 val installRoot = File(System.getProperty("user.home"), ".energy-counter/LibreHardwareMonitor")
                 installRoot.mkdirs()
+
+                // A stale LHM process from a previous install will still hold
+                // file handles on Aga.Controls.dll / LibreHardwareMonitorLib.dll
+                // and break the zip extraction. It runs elevated, so we can't
+                // taskkill it without another UAC prompt — surface a clear
+                // message instead and let the user close it from the tray.
+                if (lhmProcessIsRunning()) {
+                    return@withContext InstallResult.Failure(
+                        "LibreHardwareMonitor is already running but its web server isn't " +
+                            "responding. Right-click its tray icon → Quit, then click Install again."
+                    )
+                }
 
                 onProgress("Downloading ${asset.name} (${asset.size / 1_000_000} MB)…")
                 val zipFile = File(installRoot.parentFile, asset.name)
@@ -61,7 +82,14 @@ class LhmInstaller : PowerSourceInstaller {
                 }
 
                 onProgress("Extracting…")
-                extractZipSafely(zipFile, installRoot)
+                try {
+                    extractZipSafely(zipFile, installRoot)
+                } catch (io: java.io.IOException) {
+                    return@withContext InstallResult.Failure(
+                        "Couldn't replace LHM files (${io.message}). Close LibreHardwareMonitor.exe " +
+                            "from the system tray, then try again."
+                    )
+                }
                 zipFile.delete()
 
                 val exe = locateExecutable(installRoot)
@@ -179,6 +207,21 @@ class LhmInstaller : PowerSourceInstaller {
             |""".trimMargin()
         )
     }
+
+    /** Returns true when a LibreHardwareMonitor.exe process is currently running. */
+    private fun lhmProcessIsRunning(): Boolean = runCatching {
+        // tasklist.exe is built into Windows and doesn't require elevation.
+        val p = ProcessBuilder(
+            "tasklist.exe",
+            "/FI", "IMAGENAME eq LibreHardwareMonitor.exe",
+            "/NH",
+        )
+            .redirectErrorStream(true)
+            .start()
+        val out = p.inputStream.bufferedReader().readText()
+        p.waitFor()
+        out.contains("LibreHardwareMonitor.exe", ignoreCase = true)
+    }.getOrDefault(false)
 
     private fun launchProcess(exe: File) {
         // ProcessBuilder calls CreateProcess directly, which fails with
