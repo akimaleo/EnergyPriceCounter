@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -215,7 +216,9 @@ private fun CollapsingPowerHeader(
                     HeaderTrendStrip(state, modifier = Modifier.fillMaxWidth())
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (state.running) {
-                            OutlinedButton(onClick = onStop) { Text("Stop session") }
+                            OutlinedButton(onClick = onStop) {
+                                DisableSelection { Text("Stop session") }
+                            }
                         } else {
                             Button(
                                 onClick = onStart,
@@ -223,7 +226,9 @@ private fun CollapsingPowerHeader(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary,
                                 ),
-                            ) { Text("Start session") }
+                            ) {
+                                DisableSelection { Text("Start session") }
+                            }
                         }
                     }
                 }
@@ -281,9 +286,9 @@ private fun CollapsedHeaderBar(
         Spacer(Modifier.weight(1f))
         CollapsedSparkPair(state)
         if (state.running) {
-            TextButton(onClick = onStop) { Text("Stop") }
+            TextButton(onClick = onStop) { DisableSelection { Text("Stop") } }
         } else {
-            TextButton(onClick = onStart) { Text("Start") }
+            TextButton(onClick = onStart) { DisableSelection { Text("Start") } }
         }
     }
 }
@@ -668,12 +673,12 @@ private fun PriceSourceSection(state: EnergyUiState, actions: DashboardActions) 
                 FilterChip(
                     selected = state.priceSource == PriceSource.Auto,
                     onClick = { actions.setPriceSource(PriceSource.Auto) },
-                    label = { Text("Auto (by location)") },
+                    label = { DisableSelection { Text("Auto (by location)") } },
                 )
                 FilterChip(
                     selected = state.priceSource == PriceSource.Fixed,
                     onClick = { actions.setPriceSource(PriceSource.Fixed) },
-                    label = { Text("Fixed") },
+                    label = { DisableSelection { Text("Fixed") } },
                 )
             }
             AnimatedVisibility(state.priceSource == PriceSource.Auto) {
@@ -721,7 +726,7 @@ private fun LocationBlock(state: EnergyUiState, actions: DashboardActions) {
             OutlinedButton(
                 onClick = { actions.detectLocation() },
                 enabled = state.locationStatus !is LocationStatus.Detecting,
-            ) { Text("Detect again") }
+            ) { DisableSelection { Text("Detect again") } }
             if (state.locationStatus is LocationStatus.Detecting) {
                 CircularProgressIndicator(modifier = Modifier.height(20.dp))
             }
@@ -792,7 +797,9 @@ private fun LhmInstallControl(state: EnergyUiState, actions: DashboardActions) {
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
             ) {
-                Text(if (usingLhm) "Reinstall LibreHardwareMonitor" else "Install LibreHardwareMonitor")
+                DisableSelection {
+                    Text(if (usingLhm) "Reinstall LibreHardwareMonitor" else "Install LibreHardwareMonitor")
+                }
             }
             if (installing) {
                 CircularProgressIndicator(modifier = Modifier.height(20.dp))
@@ -850,7 +857,9 @@ private fun HistorySection(state: EnergyUiState, actions: DashboardActions) {
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
-                TextButton(onClick = { actions.clearHistory() }) { Text("Clear") }
+                TextButton(onClick = { actions.clearHistory() }) {
+                    DisableSelection { Text("Clear") }
+                }
             }
             EnergyHistoryChart(samples = state.history, modifier = Modifier.fillMaxWidth())
         }
