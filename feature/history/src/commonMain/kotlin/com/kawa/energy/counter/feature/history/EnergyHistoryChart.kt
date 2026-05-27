@@ -1,4 +1,4 @@
-package com.kawa.energy.counter.ui
+package com.kawa.energy.counter.feature.history
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement

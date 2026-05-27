@@ -53,15 +53,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.kawa.energy.counter.ui.AnimatedNumber
-import com.kawa.energy.counter.ui.EnergyHistoryChart
+import com.kawa.energy.counter.ui.components.AnimatedNumber
+import com.kawa.energy.counter.feature.history.EnergyHistoryChart
 import com.kawa.energy.counter.ui.EnergyUiState
 import com.kawa.energy.counter.ui.EnergyViewModel
 import com.kawa.energy.counter.ui.LocationStatus
 import com.kawa.energy.counter.ui.PriceSource
-import com.kawa.energy.counter.ui.Sparkline
-import com.kawa.energy.counter.ui.SpeedometerGauge
-import com.kawa.energy.counter.ui.WorldMap
+import com.kawa.energy.counter.ui.components.Sparkline
+import com.kawa.energy.counter.ui.components.SpeedometerGauge
+import com.kawa.energy.counter.feature.location.WorldMap
 
 private val DashboardScheme = darkColorScheme(
     primary = Color(0xFF7BD389),
@@ -417,10 +417,16 @@ private fun Header(state: EnergyUiState) {
                 label = locationPillLabel(state),
                 accent = MaterialTheme.colorScheme.tertiary,
             )
+            val windowMs = 12 * 3_600_000L
             HeaderPill(
                 icon = "⚡",
-                label = "12h · ${roundKwh(recentUsageKwh(state.history, 12 * 3_600_000L))} kWh",
+                label = "12h · ${roundKwh(recentUsageKwh(state.history, windowMs))} kWh",
                 accent = MaterialTheme.colorScheme.primary,
+            )
+            HeaderPill(
+                icon = "💰",
+                label = "12h · ${roundMoney(recentCost(state.history, windowMs))} ${state.currency}",
+                accent = MaterialTheme.colorScheme.error,
             )
         }
     }
@@ -495,6 +501,46 @@ private fun roundKwh(v: Double): String {
     val whole = r.toLong()
     val frac = (kotlin.math.round((r - whole) * 10000.0)).toLong()
         .toString().padStart(4, '0')
+    return "$whole.$frac"
+}
+
+/**
+ * Sum of cost incurred over the last [windowMs] ms, using the per-session
+ * delta of [com.kawa.energy.counter.domain.SessionSample.costInCurrency] so each
+ * sample's recorded rate is honoured rather than retroactively applying today's price.
+ */
+private fun recentCost(samples: List<com.kawa.energy.counter.domain.SessionSample>, windowMs: Long): Double {
+    if (samples.isEmpty()) return 0.0
+    val now = samples.last().timestampMs
+    val cutoff = now - windowMs
+    val window = samples.filter { it.timestampMs >= cutoff }
+    if (window.isEmpty()) return 0.0
+
+    var total = 0.0
+    var segmentStart = window.first().costInCurrency
+    var segmentLast = window.first().costInCurrency
+    var prevTs = window.first().timestampMs
+
+    for (i in 1 until window.size) {
+        val s = window[i]
+        val gap = s.timestampMs - prevTs
+        val sessionReset = s.costInCurrency < segmentLast - 1e-9
+        if (gap > 15_000L || sessionReset) {
+            total += segmentLast - segmentStart
+            segmentStart = s.costInCurrency
+        }
+        segmentLast = s.costInCurrency
+        prevTs = s.timestampMs
+    }
+    total += segmentLast - segmentStart
+    return total
+}
+
+private fun roundMoney(v: Double): String {
+    val r = kotlin.math.round(v * 100.0) / 100.0
+    val whole = r.toLong()
+    val frac = (kotlin.math.round((r - whole) * 100.0)).toLong()
+        .toString().padStart(2, '0')
     return "$whole.$frac"
 }
 
@@ -662,11 +708,19 @@ private fun LocationBlock(state: EnergyUiState, vm: EnergyViewModel) {
         var manual by remember { mutableStateOf(state.location?.countryCode.orEmpty()) }
         OutlinedTextField(
             value = manual,
-            onValueChange = {
-                val v = it.uppercase().take(2)
-                manual = v
-                if (v.length == 2) vm.overrideCountry(v)
+            onValueChange = { newValue ->
+                // Letters only, max 2 chars. Reject longer input rather than truncating —
+                // truncation desyncs the TextField's internal cursor position and can crash.
+                val filtered = newValue.filter { it.isLetter() }
+                if (filtered.length <= 2) {
+                    val v = filtered.uppercase()
+                    manual = v
+                    if (v.length == 2) {
+                        runCatching { vm.overrideCountry(v) }
+                    }
+                }
             },
+            singleLine = true,
             label = { Text("Or type ISO code (e.g. NL, DE, FR)") },
             modifier = Modifier.fillMaxWidth(),
         )

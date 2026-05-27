@@ -1,4 +1,4 @@
-package com.kawa.energy.counter.ui
+package com.kawa.energy.counter.ui.components
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState

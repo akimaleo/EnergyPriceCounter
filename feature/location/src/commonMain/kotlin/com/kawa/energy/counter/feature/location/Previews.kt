@@ -1,0 +1,60 @@
+package com.kawa.energy.counter.feature.location
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+
+@Composable
+@Preview
+fun WorldMapNlSelectedPreview() {
+    PreviewSurface {
+        WorldMap(
+            selectedCountry = "NL",
+            onCountryPicked = {},
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+@Preview
+fun WorldMapNoSelectionPreview() {
+    PreviewSurface {
+        WorldMap(
+            selectedCountry = null,
+            onCountryPicked = {},
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun PreviewSurface(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = previewScheme()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(16.dp),
+        ) { content() }
+    }
+}
+
+private fun previewScheme() = darkColorScheme(
+    primary = Color(0xFF7BD389),
+    tertiary = Color(0xFFFFB454),
+    background = Color(0xFF101418),
+    surface = Color(0xFF1A1F25),
+    surfaceVariant = Color(0xFF252B33),
+    onSurface = Color(0xFFE5E7EB),
+    onSurfaceVariant = Color(0xFFB4BAC4),
+    outline = Color(0xFF445164),
+)
