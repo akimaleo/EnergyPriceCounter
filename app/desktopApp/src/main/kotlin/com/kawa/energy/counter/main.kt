@@ -41,8 +41,8 @@ import androidx.compose.ui.window.WindowScope
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import java.awt.MouseInfo
 import java.awt.Point
-import kotlin.math.roundToInt
 
 fun main() = application {
     val state = rememberWindowState(width = 900.dp, height = 760.dp)
@@ -163,10 +163,11 @@ private fun TitleBarButton(
 private enum class TitleBarSymbol { Minimize, Maximize, Close }
 
 /**
- * A draggable area for an undecorated window. Drags move the underlying AWT
- * window by the cumulative pointer delta — mirrors the behaviour of
- * Compose Desktop's WindowDraggableArea without depending on the helper
- * (which isn't exposed in this Compose Multiplatform configuration).
+ * Draggable region for an undecorated window. Computes the cursor-to-window
+ * offset in screen coordinates on press and pins the window to it on every
+ * move. Using compose pointer-local deltas here causes a feedback loop:
+ * moving the window shifts the pointer's local position, which compose then
+ * reports as a delta on the next event, making the window oscillate.
  */
 @Composable
 private fun WindowScope.DraggableTitleArea(
@@ -174,15 +175,21 @@ private fun WindowScope.DraggableTitleArea(
     content: @Composable () -> Unit,
 ) {
     val frame = window
+    var grab: Point? = null
     Box(
         modifier = modifier.pointerInput(Unit) {
-            detectDragGestures { change, drag ->
+            detectDragGestures(
+                onDragStart = {
+                    val mouse = MouseInfo.getPointerInfo()?.location ?: return@detectDragGestures
+                    val win = frame.location
+                    grab = Point(mouse.x - win.x, mouse.y - win.y)
+                },
+                onDragEnd = { grab = null },
+                onDragCancel = { grab = null },
+            ) { change, _ ->
                 change.consume()
-                val loc = frame.location
-                frame.location = Point(
-                    loc.x + drag.x.roundToInt(),
-                    loc.y + drag.y.roundToInt(),
-                )
+                val mouse = MouseInfo.getPointerInfo()?.location ?: return@detectDragGestures
+                grab?.let { off -> frame.setLocation(mouse.x - off.x, mouse.y - off.y) }
             }
         },
         content = { content() },
